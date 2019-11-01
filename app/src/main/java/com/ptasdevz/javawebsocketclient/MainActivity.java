@@ -5,6 +5,8 @@ import android.os.Bundle;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -22,7 +24,6 @@ import java.net.URISyntaxException;
 import tech.gusavila92.websocketclient.WebSocketClient;
 import ua.naiksoftware.stomp.Stomp;
 import ua.naiksoftware.stomp.StompClient;
-import ua.naiksoftware.stomp.dto.StompMessage;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -30,7 +31,7 @@ public class MainActivity extends AppCompatActivity {
     private StompClient mStompClient;
 
     private static final String TAG = "WebSocket";
-    private String sendAnimalSoundUri = "/topic/send-animal-sound";
+    private String sendAnimalSoundUri = "/app/send-animal-sound";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,13 +41,17 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         createWebSocketClient();
         setupStompConnection();
+
+        GsonBuilder gsonBilder = new GsonBuilder();
+        gsonBilder.registerTypeAdapter(AbstractElement.class, new AbstractElementAdapter());
+        Gson gson = gsonBilder.create();
+        String msgStr = gson.toJson(new MyMessages());
         ImageButton dogBtn = findViewById(R.id.dog_btn);
         dogBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-//                webSocketClient.send("1");
-                mStompClient.send(sendAnimalSoundUri, "1").subscribe();
-
+                webSocketClient.send("1");
+                mStompClient.send(sendAnimalSoundUri, msgStr).subscribe();
             }
         });
         ImageButton catBtn = findViewById(R.id.cat_btn);
@@ -55,7 +60,6 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
 //                webSocketClient.send("2");
                 mStompClient.send(sendAnimalSoundUri, "2").subscribe();
-
             }
         });
         ImageButton foxBtn = findViewById(R.id.fox_btn);
@@ -64,7 +68,6 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
 //                webSocketClient.send("3");
                 mStompClient.send(sendAnimalSoundUri, "3").subscribe();
-
             }
         });
         ImageButton pigBtn = findViewById(R.id.pig_btn);
@@ -78,7 +81,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-
 //        FloatingActionButton fab = findViewById(R.id.fab);
 //        fab.setOnClickListener(new View.OnClickListener() {
 //            @Override
@@ -90,32 +92,49 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupStompConnection() {
-        mStompClient = Stomp.over(
-                Stomp.ConnectionProvider.OKHTTP, "ws://192.168.137.1:8080/gs-guide-websocket/websocket");
-//        mStompClient = Stomp.over(
-//                Stomp.ConnectionProvider.OKHTTP, "ws://10.0.2.2:8080/gs-guide-websocket/websocket");
+        try {
+            mStompClient = Stomp.over(
+                    Stomp.ConnectionProvider.OKHTTP, "ws://192.168.137.1:8080/endpoint/websocket");
+            mStompClient.connect();
 
-        mStompClient.topic("/topic/animal-sounds").subscribe(topicMessage -> {
-            String payload = topicMessage.getPayload();
-            Log.d(TAG, payload);
-            final String msg = payload;
-            runOnUiThread(() -> {
-                try{
-                    TextView textView = findViewById(R.id.animal_sound);
-                    textView.setText(msg);
-                } catch (Exception e){
-                    e.printStackTrace();
+            mStompClient.topic("/topic/animal-sounds").subscribe(topicMessage -> {
+                String payload = topicMessage.getPayload();
+                Log.d(TAG, payload);
+                final String msg = payload;
+                runOnUiThread(() -> {
+                    try {
+                        TextView textView = findViewById(R.id.animal_sound);
+                        textView.setText(msg);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+            });
+
+            mStompClient.lifecycle().subscribe(lifecycleEvent -> {
+                switch (lifecycleEvent.getType()) {
+                    case OPENED:
+                        Log.d(TAG, "Stomp connection opened");
+                        break;
+                    case CLOSED:
+                        Log.d(TAG, "Stomp connection closed");
+                        break;
+                    case ERROR:
+                        Log.e(TAG, "Stomp connection error", lifecycleEvent.getException());
+                        break;
                 }
             });
 
-        },throwable -> {
-            Log.e(TAG, String.valueOf(new Exception("error in app")));
-        });
-        //mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!").subscribe();
+            mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
+                Log.d(TAG, topicMessage.getPayload());
+            });
 
-        //mStompClient.disconnect();
+            mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!").subscribe();
 
-        mStompClient.connect();
+//        mStompClient.disconnect();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
 
     }
 
@@ -132,19 +151,19 @@ public class MainActivity extends AppCompatActivity {
         webSocketClient = new WebSocketClient(uri) {
             @Override
             public void onOpen() {
-                Log.i(TAG,"Session is starting");
+                Log.i(TAG, "Session is starting");
                 webSocketClient.send("Hello World");
             }
 
             @Override
             public void onTextReceived(String message) {
-                Log.i(TAG,"Message received.");
+                Log.i(TAG, "Message received.");
                 final String msg = message;
                 runOnUiThread(() -> {
-                    try{
+                    try {
                         TextView textView = findViewById(R.id.animal_sound);
                         textView.setText(msg);
-                    } catch (Exception e){
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
                 });
