@@ -24,6 +24,7 @@ android {
 
 dependencies {
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
+    implementation files("C:\\Users\\jason\\IdeaProjects\\TutorMyPeerCommons\\target\\tutormypeer-commons-0.0.1.jar")
     implementation 'com.google.code.gson:gson:2.8.6'
     implementation 'com.github.NaikSoftware:StompProtocolAndroid:1.6.4'
     implementation 'tech.gusavila92:java-android-websocket-client:1.2.2'

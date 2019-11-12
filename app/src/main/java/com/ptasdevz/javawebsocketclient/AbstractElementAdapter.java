@@ -16,7 +16,7 @@ public class AbstractElementAdapter implements JsonSerializer<AbstractElement>, 
     @Override
     public JsonElement serialize(AbstractElement src, Type typeOfSrc, JsonSerializationContext context) {
         JsonObject result = new JsonObject();
-        result.add("type", new JsonPrimitive(src.getClass().getSimpleName()));
+        result.add("type", new JsonPrimitive(src.getClass().getName()));
         result.add("properties", context.serialize(src, src.getClass()));
 
         return result;
@@ -30,7 +30,8 @@ public class AbstractElementAdapter implements JsonSerializer<AbstractElement>, 
         JsonElement element = jsonObject.get("properties");
 
         try {
-            return context.deserialize(element, Class.forName("com.ptasdevz.javawebsocketclient." + type));
+//            return context.deserialize(element, Class.forName(AbstractElement.class.getPackage()+"." + type));
+            return context.deserialize(element, Class.forName(type));
         } catch (ClassNotFoundException cnfe) {
             throw new JsonParseException("Unknown element type: " + type, cnfe);
         }

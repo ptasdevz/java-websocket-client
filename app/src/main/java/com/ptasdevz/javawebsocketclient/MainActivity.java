@@ -7,6 +7,8 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.ptasdevz.tutormypeerrestapi.user.usertype.StdUser;
+import com.ptasdevz.tutormypeerrestapi.user.usertype.User;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -21,6 +23,9 @@ import android.widget.TextView;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
 import tech.gusavila92.websocketclient.WebSocketClient;
 import ua.naiksoftware.stomp.Stomp;
 import ua.naiksoftware.stomp.StompClient;
@@ -42,10 +47,15 @@ public class MainActivity extends AppCompatActivity {
         createWebSocketClient();
         setupStompConnection();
 
-        GsonBuilder gsonBilder = new GsonBuilder();
-        gsonBilder.registerTypeAdapter(AbstractElement.class, new AbstractElementAdapter());
-        Gson gson = gsonBilder.create();
-        String msgStr = gson.toJson(new MyMessages());
+//        GsonBuilder gsonBilder = new GsonBuilder();
+//        gsonBilder.registerTypeAdapter(AbstractElement.class, new AbstractElementAdapter());
+//        Gson gson = gsonBilder.create();
+//        String msgStr = gson.toJson(new MyMessages());
+        StdUser user = new StdUser();
+        user.setEmail("peepaz@gmail.com");
+        user.setName("jason");
+        String msgStr = User.toJsonString(user);
+
         ImageButton dogBtn = findViewById(R.id.dog_btn);
         dogBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -97,42 +107,60 @@ public class MainActivity extends AppCompatActivity {
                     Stomp.ConnectionProvider.OKHTTP, "ws://192.168.137.1:8080/endpoint/websocket");
             mStompClient.connect();
 
-            mStompClient.topic("/topic/animal-sounds").subscribe(topicMessage -> {
-                String payload = topicMessage.getPayload();
-                Log.d(TAG, payload);
-                final String msg = payload;
-                runOnUiThread(() -> {
-                    try {
-                        TextView textView = findViewById(R.id.animal_sound);
-                        textView.setText(msg);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
-            });
+            mStompClient.topic("/topic/animal-sounds")
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(topicMessage -> {
+                        String payload = topicMessage.getPayload();
+                        Log.d(TAG, payload);
+                        final String msg = payload;
+                        runOnUiThread(() -> {
+                            try {
+                                TextView textView = findViewById(R.id.animal_sound);
+                                textView.setText(msg);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        });
+                    }, throwable -> {
+                        Log.e(TAG, "Error on subscribe topic", throwable);
+                    });
 
-            mStompClient.lifecycle().subscribe(lifecycleEvent -> {
-                switch (lifecycleEvent.getType()) {
-                    case OPENED:
-                        Log.d(TAG, "Stomp connection opened");
-                        break;
-                    case CLOSED:
-                        Log.d(TAG, "Stomp connection closed");
-                        break;
-                    case ERROR:
-                        Log.e(TAG, "Stomp connection error", lifecycleEvent.getException());
-                        break;
-                }
-            });
+            mStompClient.lifecycle()
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(lifecycleEvent -> {
+                        switch (lifecycleEvent.getType()) {
+                            case OPENED:
+                                Log.d(TAG, "Stomp connection opened");
+                                break;
+                            case CLOSED:
+                                Log.d(TAG, "Stomp connection closed");
+                                break;
+                            case ERROR:
+                                Log.e(TAG, "Stomp connection error", lifecycleEvent.getException());
+                                break;
+                        }
+                    }, throwable -> {
+                        Log.e(TAG, "Error on subscribe lifecycle", throwable);
+                    });
 
-            mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
-                Log.d(TAG, topicMessage.getPayload());
-            });
+            mStompClient.topic("/topic/greetings")
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(topicMessage -> Log.d(TAG, topicMessage.getPayload()),
+                            throwable -> {
+                                Log.e(TAG, "Error subscribe ", throwable);
+                            });
 
-            mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!").subscribe();
+            mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!")
+                    .subscribe(null, throwable -> {
+                                Log.e(TAG,"error sending message");
+                            }
+                    );
 
 //        mStompClient.disconnect();
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
